@@ -37,38 +37,47 @@ let lockedThudCooldown = 0;
 loops.applyLoop(0);
 
 // --- 開始・ポーズ ---
-// ポインタロックは「取得イベントが来たとき」だけプレイ状態に入る。
+// タッチデバイス（スマホ・LINE等のアプリ内ブラウザ含む）ではpointer lockを一切使わず、
+// タップで直接プレイ状態に入る。視点・移動はタッチ操作（player.js）。
+//
+// デスクトップではポインタロックの「取得イベントが来たとき」だけプレイ状態に入る。
 // Escやスクリーンショット直後の再ロックはブラウザが1秒強拒否するため、
 // 失敗したらオーバーレイを出し直して次のクリックを待つ。
+const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 let started = false;
+
+function beginPlay() {
+  if (state === 'ending') return;
+  ui.hideTitle();
+  if (!started) {
+    started = true;
+    ui.fadeIn(2.5);
+  }
+  state = 'playing';
+  player.enable();
+  ui.setReticleVisible(true);
+}
 
 function requestLock() {
   const p = renderer.domElement.requestPointerLock();
   if (p && typeof p.catch === 'function') {
     p.catch(() => {
-      ui.showTitle(requestLock, { resumed: true });
+      ui.showTitle(requestLock, { resumed: true, touch: IS_TOUCH });
     });
   }
 }
 
 ui.showTitle(() => {
   if (!audio.started) audio.start().then(() => loops.applyLoop(loops.index));
-  requestLock();
-});
+  if (IS_TOUCH) beginPlay();
+  else requestLock();
+}, { touch: IS_TOUCH });
 
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === renderer.domElement;
   if (locked) {
-    if (state === 'ending') return;
-    ui.hideTitle();
-    if (!started) {
-      started = true;
-      ui.fadeIn(2.5);
-    }
-    state = 'playing';
-    player.enable();
-    ui.setReticleVisible(true);
-  } else if (state === 'playing') {
+    beginPlay();
+  } else if (state === 'playing' && !IS_TOUCH) {
     state = 'paused';
     player.disable();
     ui.setReticleVisible(false);
@@ -81,9 +90,9 @@ document.addEventListener('pointerlockchange', () => {
   }
 });
 
-// 保険: ロックが外れたままならキャンバスクリックでも復帰できる
+// 保険: ロックが外れたままならキャンバスクリックでも復帰できる（デスクトップのみ）
 renderer.domElement.addEventListener('click', () => {
-  if (started && state !== 'ending' && !document.pointerLockElement) requestLock();
+  if (!IS_TOUCH && started && state !== 'ending' && !document.pointerLockElement) requestLock();
 });
 
 // Ctrl/Cmd+Shift はOSショートカット（スクリーンショット等）の前置きなので、
@@ -189,12 +198,7 @@ window.__game = {
   player, loops, corridor, audio, post,
   getState: () => state,
   forceStart: () => { // ヘッドレス環境などpointer lockが取れない場合の開始
-    ui.hideTitle();
-    started = true;
-    state = 'playing';
-    player.enable();
-    ui.setReticleVisible(true);
-    ui.fadeIn(0.5);
+    beginPlay();
   },
 };
 

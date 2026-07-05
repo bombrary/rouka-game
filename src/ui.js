@@ -58,15 +58,19 @@ export class UI {
     this.layer.appendChild(this.titleEl);
   }
 
-  showTitle(onStart, { resumed = false } = {}) {
+  showTitle(onStart, { resumed = false, touch = false } = {}) {
+    const tapWord = touch ? 'タップ' : 'クリック';
+    const controls = touch
+      ? 'ひだりはんぶん　あるく<br>みぎはんぶん　みまわす<br><br>ヘッドホン推奨'
+      : 'WASD　あるく<br>マウス　みまわす<br><br>ヘッドホン推奨';
     this.titleEl.innerHTML = resumed
-      ? `<div style="font-size:15px;letter-spacing:0.6em;opacity:0.7">クリックで戻る</div>`
+      ? `<div style="font-size:15px;letter-spacing:0.6em;opacity:0.7">${tapWord}で戻る</div>`
       : `
       <div style="font-size:44px;letter-spacing:0.9em;text-indent:0.9em">廊　下</div>
       <div style="font-size:13px;letter-spacing:0.35em;opacity:0.55;line-height:2.4">
-        WASD　あるく<br>マウス　みまわす<br><br>ヘッドホン推奨
+        ${controls}
       </div>
-      <div style="font-size:15px;letter-spacing:0.6em;opacity:0.8">クリックではじめる</div>`;
+      <div style="font-size:15px;letter-spacing:0.6em;opacity:0.8">${tapWord}ではじめる</div>`;
     this.titleEl.style.display = 'flex';
     this.titleEl.onclick = () => {
       this.titleEl.style.display = 'none';

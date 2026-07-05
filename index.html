@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>廊下 — a P.T.-like</title>
   <style>
     html, body {
@@ -12,10 +12,11 @@
       height: 100%;
       background: #000;
       overflow: hidden;
+      overscroll-behavior: none;
       font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
     }
-    #app { width: 100%; height: 100%; }
-    canvas { display: block; image-rendering: pixelated; }
+    #app { width: 100%; height: 100%; touch-action: none; }
+    canvas { display: block; image-rendering: pixelated; touch-action: none; }
   </style>
 </head>
 <body>

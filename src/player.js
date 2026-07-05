@@ -52,6 +52,47 @@ export class Player {
       this.pitch = Math.max(-lim, Math.min(lim, this.pitch));
     });
 
+    // タッチ操作: 画面左半分=移動スティック、右半分=視点ドラッグ
+    this.touchStick = null; // {id, sx, sy, x, y}
+    this.touchLook = null;  // {id, x, y}
+    domElement.addEventListener('touchstart', (e) => {
+      if (!this.enabled) return;
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.clientX < window.innerWidth * 0.45 && !this.touchStick) {
+          this.touchStick = { id: t.identifier, sx: t.clientX, sy: t.clientY, x: t.clientX, y: t.clientY };
+        } else if (!this.touchLook) {
+          this.touchLook = { id: t.identifier, x: t.clientX, y: t.clientY };
+        }
+      }
+    }, { passive: false });
+    domElement.addEventListener('touchmove', (e) => {
+      if (!this.enabled) return;
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (this.touchStick && t.identifier === this.touchStick.id) {
+          this.touchStick.x = t.clientX;
+          this.touchStick.y = t.clientY;
+        } else if (this.touchLook && t.identifier === this.touchLook.id) {
+          const s = 0.0045;
+          this.yaw -= (t.clientX - this.touchLook.x) * s;
+          this.pitch -= (t.clientY - this.touchLook.y) * s;
+          const lim = Math.PI / 2 - 0.08;
+          this.pitch = Math.max(-lim, Math.min(lim, this.pitch));
+          this.touchLook.x = t.clientX;
+          this.touchLook.y = t.clientY;
+        }
+      }
+    }, { passive: false });
+    const endTouch = (e) => {
+      for (const t of e.changedTouches) {
+        if (this.touchStick && t.identifier === this.touchStick.id) this.touchStick = null;
+        if (this.touchLook && t.identifier === this.touchLook.id) this.touchLook = null;
+      }
+    };
+    domElement.addEventListener('touchend', endTouch);
+    domElement.addEventListener('touchcancel', endTouch);
+
     this.camera.rotation.order = 'YXZ';
     this._sync();
   }
@@ -82,8 +123,15 @@ export class Player {
       if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) ix -= 1;
       if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) ix += 1;
     }
+    // タッチスティックの入力を合成
+    if (this.enabled && this.touchStick) {
+      const clamp = (v) => Math.max(-1, Math.min(1, v));
+      ix += clamp((this.touchStick.x - this.touchStick.sx) / 55);
+      iz += clamp((this.touchStick.y - this.touchStick.sy) / 55);
+    }
+
     const len = Math.hypot(ix, iz);
-    if (len > 0) { ix /= len; iz /= len; }
+    if (len > 1) { ix /= len; iz /= len; }
 
     // 加減速をなめらかに
     const k = 1 - Math.exp(-10 * dt);
