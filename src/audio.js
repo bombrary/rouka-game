@@ -24,6 +24,7 @@ export class AudioEngine {
     this._breathOn = false;
     this._breathPan = 0;
     this._heartBpm = 0;
+    this._presenceLevel = 0;
 
     // update()用の内部時間・タイマー
     this._time = 0;
@@ -83,6 +84,7 @@ export class AudioEngine {
     this._setupHum();
     this._setupRadio();
     this._setupBreathing();
+    this._setupPresence();
 
     this._started = true;
 
@@ -91,6 +93,50 @@ export class AudioEngine {
     if (this._humOn) { this._humOn = false; this.setHum(true); }
     if (this._radioOn) { this._radioOn = false; this.setRadio(true, this._radioPan); }
     if (this._breathOn) { this._breathOn = false; this.setBreathing(true, this._breathPan); }
+    if (this._presenceLevel > 0) { const p = this._presenceLevel; this._presenceLevel = -1; this.setPresence(p); }
+  }
+
+  // ------------------------------------------------------------
+  // 気配（異変への近接キュー）: 空気が張り詰めるような細いノイズ
+  // ------------------------------------------------------------
+
+  _setupPresence() {
+    const ctx = this.ctx;
+    const n = this._noiseSource(true);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 980;
+    bp.Q.value = 9;
+    // ゆっくりした揺らぎ（トレモロ）で「息づいている」感じに
+    const trem = ctx.createGain();
+    trem.gain.value = 0.72;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.8;
+    const lfoDepth = ctx.createGain();
+    lfoDepth.gain.value = 0.28;
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(trem.gain);
+    this._presenceGain = ctx.createGain();
+    this._presenceGain.gain.value = 0;
+    n.connect(bp);
+    bp.connect(trem);
+    trem.connect(this._presenceGain);
+    this._presenceGain.connect(this.master);
+    const rev = ctx.createGain();
+    rev.gain.value = 0.7;
+    this._presenceGain.connect(rev);
+    rev.connect(this.reverbSend);
+    n.start();
+    lfo.start();
+  }
+
+  // 0..1。異変の対象に近いほど大きく（呼び出し側が距離から算出）
+  setPresence(level) {
+    level = clamp(level || 0, 0, 1);
+    if (!this._started) { this._presenceLevel = level; return; }
+    if (level === this._presenceLevel) return;
+    this._presenceLevel = level;
+    this._presenceGain.gain.setTargetAtTime(0.055 * level, this.ctx.currentTime, 0.5);
   }
 
   // ------------------------------------------------------------

@@ -33,7 +33,7 @@ const POOL = [
   },
   {
     id: 'frames-flipped', tier: 1,
-    key: (c) => [c.frames[3].group, 3.2, 1.6],
+    key: (c) => [c.frames.map((f) => f.group), 3.2, 1.6], // どの額縁を見てもよい
     testView: { p: [0.3, -4.5], t: [-0.975, 1.55, -4.5] },
     apply({ corridor: c }) {
       for (const f of c.frames) f.setFlipped(true);
@@ -41,7 +41,7 @@ const POOL = [
   },
   {
     id: 'lamp-color', tier: 1,
-    key: (c) => [c.lamps[1].group, 5, 1.6],
+    key: (c) => [c.lamps.map((l) => l.group), 5, 1.6], // どのランプを見てもよい
     testView: { p: [0, -6.5], t: [0, 2.05, -8] },
     apply({ corridor: c }) {
       for (const l of c.lamps) l.setColor(0x9fe8c0); // 病的な青緑
@@ -127,6 +127,8 @@ const POOL = [
   },
 ];
 
+const _wp = new THREE.Vector3(); // 近接キューの距離計算用
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -153,7 +155,7 @@ export class LoopManager {
 
     this.index = 0;
     this.recognized = true;
-    this.keyObject = null;
+    this.keyObjects = null;
     this.keyDist = 0;
     this.keyNeeded = 1;
     this.gaze = 0;
@@ -228,12 +230,12 @@ export class LoopManager {
     if (cur) {
       cur.apply({ corridor: c, audio: a, post: this.post });
       const [obj, dist, needed] = cur.key(c);
-      this.keyObject = obj;
+      this.keyObjects = Array.isArray(obj) ? obj : [obj];
       this.keyDist = dist;
       this.keyNeeded = needed;
       this.recognized = false;
     } else {
-      this.keyObject = null;
+      this.keyObjects = null;
       this.recognized = true;
     }
 
@@ -281,10 +283,10 @@ export class LoopManager {
 
   update(dt, camera) {
     // --- 凝視判定 ---
-    if (this.keyObject && !this.recognized) {
+    if (this.keyObjects && !this.recognized) {
       this.raycaster.setFromCamera({ x: 0, y: 0 }, camera);
       this.raycaster.far = this.keyDist;
-      const hits = this.raycaster.intersectObject(this.keyObject, true);
+      const hits = this.raycaster.intersectObjects(this.keyObjects, true);
       if (hits.length > 0) {
         this.gaze += dt / this.keyNeeded;
         if (this.gaze >= 1) {
@@ -295,8 +297,20 @@ export class LoopManager {
         this.gaze = Math.max(0, this.gaze - dt * 0.8);
       }
       this.ui.setGazeProgress(this.gaze);
+
+      // --- 近接キュー: 異変の対象に近づくほど空気が張り詰める ---
+      let min = Infinity;
+      for (const o of this.keyObjects) {
+        o.getWorldPosition(_wp);
+        const dx = _wp.x - camera.position.x;
+        const dz = _wp.z - camera.position.z;
+        min = Math.min(min, Math.hypot(dx, dz));
+      }
+      const t = Math.max(0, Math.min(1, 1 - (min - 1.2) / 7));
+      this.audio.setPresence(t * t);
     } else {
       this.ui.setGazeProgress(0);
+      this.audio.setPresence(0);
     }
 
     // --- 環境音イベント ---
